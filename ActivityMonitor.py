@@ -1,81 +1,62 @@
-0##
+##
 # This script is meant to monitor actual activity time on a computer. This means
 # actual time typing and or moving the mouse. If an employee is trusted enough to be
 # accurately only using the work computer for work, this is actual man hours expended.
 
 import time
+import sys
 from datetime import datetime
 import matplotlib.pyplot as plt
-import threading
-import pythoncom
-from win32gui import GetCursorPos
-from win32api import GetKeyboardState
-import pyHook, pythoncom
+import win32gui
+import win32process
+import win32api
 from time import sleep
+import wmi
 
-mouse_active    = False
-keyboard_active = False
-log_time        = 0
+c = wmi.WMI()
 
-def LogActivity():
-  global mouse_active
-  global keyboard_active
-  global log_time
-  if time.clock() >= log_time:
-    print("\nLogging activity: MA: {0:s} | KA: {1:s}\n".format( str(mouse_active), str(keyboard_active) ))
-    logFile = open("activity.am","a")
-    write_string = str(datetime.now())
-    write_string += "," + "MouseActivity:{0:s}".format( str(mouse_active) )
-    write_string += "," + "KeyboardActivity:{0:s}".format( str(keyboard_active) )
-    write_string += "\n"
-    logFile.write(write_string)
-    mouse_active    = False
-    keyboard_active = False
-    log_time = time.clock()+10
+def get_app_name(hwnd):
+    """Get applicatin filename given hwnd."""
+    try:
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        for p in c.query('SELECT Name FROM Win32_Process WHERE ProcessId = %s' % str(pid)):
+            exe = p.Name
+            break
+    except:
+        return None
+    else:
+        return exe
 
-def OnMouseEvent(event):
-  global mouse_active
-  mouse_active = True
-  LogActivity()
+## Get list of all windows
+windows = list()
+def foreach_window(hwnd, lParam):
+    if win32gui.IsWindowVisible(hwnd):
+        windows.append( hwnd )
+    return True
+#win32gui.EnumWindows(foreach_window, 0)
 
-  print("In mouse event. Time: ", time.clock())
+def LogMouseActivity(mouse_active, app_name):
+  print("\nLogging Mouse Activity: MA: {0:s} in App: {1:s}\n".format( str(mouse_active), str(app_name) ) )
+  logFile = open("mouse_activity.am","a")
+  write_string = str(datetime.now())
+  write_string += "," + "MouseActivity:{0:s}".format( str(mouse_active) )
+  write_string += "," + "MouseApp:{0:s}".format( str(app_name) )
+  write_string += "\n"
+  logFile.write(write_string)
 
-  # return True to pass the event to other handlers
-  return True
-
-def OnKeyboardEvent(event):
-  global keyboard_active
-  keyboard_active = True
-  LogActivity()
-
-  print("In keyboard event. Time: ", time.clock())
-
-  # return True to pass the event to other handlers
-  return True
-
-def TimeoutEvent():
+def MonitorActivity():
   while(1):
+    mouse_pos = win32api.GetCursorPos()
     sleep(10)
-    print("In timeout event. Time: ", time.clock())
-    LogActivity()
+    LogMouseActivity( 
+      mouse_active = mouse_pos != win32api.GetCursorPos(), 
+      app_name     = get_app_name( win32gui.GetForegroundWindow() )
+    )
 
 activity = list()
 
-if __name__ == "__main__":
-  threads = list()
-  hm = pyHook.HookManager() # create a hook manager
-  hm.MouseAll = OnMouseEvent # hook all mouse events to OnMouseEvent function above
-  hm.HookMouse() # enable the hook
-  hm.KeyDown = OnKeyboardEvent
-  hm.HookKeyboard()
-  print("Starting message pumper")
-  threading.Thread(target=TimeoutEvent).start()
+def main_function():
+  MonitorActivity()
 
-  while(1):
-    last_clock = time.clock()
-    print("Pump Cycle: ",count, "| Time: ", last_clock)
-    while time.clock() < last_clock+5:
-      pythoncom.PumpWaitingMessages()
-    count += 1
-    last_clock = time.clock()
-
+if __name__ == '__main__':
+  main_function()
