@@ -6,7 +6,6 @@
 import time
 import sys
 from datetime import datetime
-import matplotlib.pyplot as plt
 import win32gui
 import win32process
 import win32api
@@ -38,9 +37,9 @@ def foreach_window(hwnd, lParam):
 def LogMouseActivity(mouse_active, app_name):
   print("\nLogging Mouse Activity: MA: {0:s} in App: {1:s}\n".format( str(mouse_active), str(app_name) ) )
   logFile = open("mouse_activity.am","a")
-  write_string = str(datetime.now())
+  write_string = datetime.now().strftime("%c") #Build timestamp string in format 10/27/15 16:51:09. See datetime docs for help
   write_string += "," + "MouseActivity:{0:s}".format( str(mouse_active) )
-  write_string += "," + "MouseApp:{0:s}".format( str(app_name) )
+  write_string += "," + "ActiveApp:{0:s}".format( str(app_name) )
   write_string += "\n"
   logFile.write(write_string)
 
@@ -56,7 +55,16 @@ def MonitorActivity():
 activity = list()
 
 def main_function():
-  MonitorActivity()
+  try:
+    MonitorActivity()
+  except Exception as e:
+    print("Saw exception: e")
+    return True
 
 if __name__ == '__main__':
-  main_function()
+  ##
+  # main_function returns True if it fails.
+  # otherwise, it will run forever.
+  # This loop wil continuously try to call main_function
+  while(main_function()):
+    pass
