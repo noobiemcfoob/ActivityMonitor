@@ -6,11 +6,10 @@ import math
 from embeddedShell import ipshell
 from sys import stdout
 
-activity_readings = list()
-
 minute = datetime.timedelta(minutes=1)
 
 def ReadLog(filename="mouse_activity.am"):
+  observations = list()
   with open(filename, 'r') as activity_log:
     reader = csv.reader(activity_log) #iterator for each row of activity_log
     for activity in reader:
@@ -18,7 +17,8 @@ def ReadLog(filename="mouse_activity.am"):
       mouse_activity  = activity[1].split(':')[-1] == 'True'
       active_app      = activity[2].split(':')[-1]
 
-      activity_readings.append( ActivityDataPoint( timestamp, mouse_activity, active_app ) )
+      observations.append( ActivityDataPoint( timestamp, mouse_activity, active_app ) )
+  return observations
 
 class ActivityDataPoint(object):
   def __init__( 
@@ -44,13 +44,14 @@ class IntervalDataPoint(ActivityDataPoint):
     self.total_activity       = 0
     self.total_observations   = 0
 
-  def AddObservation(self, observation):
-    if not type(observation) is ActivityDataPoint: raise Exception("Expecting AcitivtyDataPoint for observation")
-
+  def AddObservation(self, observation, average_act=True):
     self.total_activity += observation.activity
     self.total_observations += 1
 
-    self.activity = self.total_activity / self.total_observations
+    if average_act:
+      self.activity = self.total_activity / self.total_observations
+    else:
+      self.activity = 1 if self.activity or obseravtion.activity else 0
 
 def TimeFloor(time, minutes):
   return time - datetime.timedelta(minutes=time.minute%minutes, seconds=time.second)
@@ -104,7 +105,7 @@ def BinarySearch(test_value, data, imin=0, imax=None, debug=False):
 # Read a log, fill unobserved times with blank data, and average data into predefined intervals
 # start_time    = Starting time to begin filling in data set
 # time_interval = number of minutes for time window 
-def BuildAveragedDataSet(start_time=None, end_time=None, time_interval=10, activities=None, debug=False):
+def BuildAveragedDataSet(start_time=None, end_time=None, time_interval=10, activities=None, average_act=True, debug=False):
   dataset = list()
   interval_delta = datetime.timedelta(minutes=time_interval)
   if start_time is None:
@@ -143,11 +144,9 @@ def BuildAveragedDataSet(start_time=None, end_time=None, time_interval=10, activ
 
     # Determine which bin to put the observation
     # print("Searching for time bin for {0:s}".format( str(activity) ))
-    activity_bin_index = BinarySearch(activity_timefloor, interval_timestamps, debug=True)
+    activity_bin_index = BinarySearch(activity_timefloor, interval_timestamps, debug=False)
 
     try:
-      print( "\nFound bin for {0:s} at index {1:d}".format( str(activity), activity_bin_index ) )
-      print( "Time Bin: {0:s}".format( str(dataset[activity_bin_index]) ) )
       dataset[activity_bin_index].AddObservation( activity )
     except Exception as e:
       print("\n\nFailed to add {0:s} at index: {1:d}".format( str(activity), activity_bin_index ))
@@ -155,9 +154,28 @@ def BuildAveragedDataSet(start_time=None, end_time=None, time_interval=10, activ
 
   return dataset
 
+def StandardAnalysis(dataset):
+  if type(dataset) is not list:
+    raise Exception("Standard Analysis: dataset must be a list type")
+  if len(dataset) < 1:
+    raise Execption("Standard Analysis: dataset must have length greater than 1")
+
+  # Consolidate observations by minute intervals with simple activity (1 active mouse reading == all active mouse readings)
+  print("\nBuilding 1 Minute Interval Simple Observations")
+  dataset = BuildAveragedDataSet(activities=dataset, time_interval=1, average_act=False) 
+  # Consolidate simplified minute readings to 10 minute interval with averaged activity
+  print("\nBuilding 10 Minute Interval Averaged Observations")
+  dataset = BuildAveragedDataSet(activities=dataset, time_interval=10, average_act=True)
+
+  dates = [datum.timestamp for datum in dataset]
+  act   = [datum.activity  for datum in dataset]
+
+  plt.plot(dates, act)
+  plt.show(block=False)
 
 if __name__ == '__main__':
   print("Running ReadLog")
-  ReadLog()
+  dataset = ReadLog()
+  StandardAnalysis(dataset)
   ipshell()
 

@@ -54,17 +54,37 @@ def MonitorActivity():
 
 activity = list()
 
-def main_function():
+def MonitorExceptionCatcher():
   try:
     MonitorActivity()
   except Exception as e:
-    print("Saw exception: e")
+    print("\n\nSaw exception: \n",e
     return True
 
+def ExceptionMonitor(exception_count_threshold=None):
+  exception_count = 0
+  last_exception_time = None
+  ##
+  # MonitorExceptionCatcher returns True if it fails.
+  # otherwise, it will run forever.
+  # This loop wil continuously try to call main_function
+  while(MonitorExceptionCatcher()):
+    exception_count += 1
+    last_exception_time = datetime.now()
+
+    if exception_count_threshold and exception_count >= exception_count_threshold:
+      print("Exceeded Exception Count Threshold")
+      exception_count = 0
+
 if __name__ == '__main__':
+
+  exception_count = 0
+  last_exception_time = None
   ##
   # main_function returns True if it fails.
   # otherwise, it will run forever.
   # This loop wil continuously try to call main_function
   while(main_function()):
-    pass
+    exception_count += 1
+    last_exception_time = datetime.now()
+
