@@ -32,7 +32,7 @@ class ActivityDataPoint(object):
     self.active_app   = active_app
 
   def __repr__(self):
-    return "|| Activity {0:s} | {1:s} ||".format( str(self.timestamp), str(self.activity) )
+    return "|| Activity {0:s} | {1:6.2f} ||".format( str(self.timestamp), self.activity )
 
 class IntervalDataPoint(ActivityDataPoint):
   def __init__( 
@@ -51,7 +51,7 @@ class IntervalDataPoint(ActivityDataPoint):
     if average_act:
       self.activity = self.total_activity / self.total_observations
     else:
-      self.activity = 1 if self.activity or obseravtion.activity else 0
+      self.activity = 1 if self.activity or observation.activity else 0
 
 def TimeFloor(time, minutes):
   return time - datetime.timedelta(minutes=time.minute%minutes, seconds=time.second)
@@ -85,19 +85,19 @@ def BinarySearch(test_value, data, imin=0, imax=None, debug=False):
 
   if test_value < data[index]:
     if debug: output_string += "\nValue lower than index. Moving upper end"
-    DisplayBinarySearchProgress(output_string)
+    if debug: DisplayBinarySearchProgress(output_string)
     if index == imax:
       return index
     index = BinarySearch(test_value, data, imin=imin, imax=index, debug=debug)
   elif test_value > data[index]:
     if debug: output_string += "\nValue greater than index. Moving lower end"
-    DisplayBinarySearchProgress(output_string)
+    if debug: DisplayBinarySearchProgress(output_string)
     if index == imin:
       return imin 
     index = BinarySearch(test_value, data, imin=index, imax=imax, debug=debug)
   else:
     if debug: output_string += "\nMatched value at index %d"%(index)
-    DisplayBinarySearchProgress(output_string)
+    if debug: DisplayBinarySearchProgress(output_string)
     
   return index
 
@@ -147,7 +147,7 @@ def BuildAveragedDataSet(start_time=None, end_time=None, time_interval=10, activ
     activity_bin_index = BinarySearch(activity_timefloor, interval_timestamps, debug=False)
 
     try:
-      dataset[activity_bin_index].AddObservation( activity )
+      dataset[activity_bin_index].AddObservation( activity, average_act )
     except Exception as e:
       print("\n\nFailed to add {0:s} at index: {1:d}".format( str(activity), activity_bin_index ))
       raise e
@@ -162,20 +162,62 @@ def StandardAnalysis(dataset):
 
   # Consolidate observations by minute intervals with simple activity (1 active mouse reading == all active mouse readings)
   print("\nBuilding 1 Minute Interval Simple Observations")
-  dataset = BuildAveragedDataSet(activities=dataset, time_interval=1, average_act=False) 
+  dataset = BuildAveragedDataSet(activities=dataset, time_interval=5, average_act=False) 
   # Consolidate simplified minute readings to 10 minute interval with averaged activity
   print("\nBuilding 10 Minute Interval Averaged Observations")
-  dataset = BuildAveragedDataSet(activities=dataset, time_interval=10, average_act=True)
+  dataset = BuildAveragedDataSet(activities=dataset, time_interval=15, average_act=True)
 
+  return dataset
+
+def WeeklyAnalysis(dataset, weeks_ago=0):
+  time_interval = 30 #minutes
+  dataset = StandardAnalysis(dataset)
+  now = datetime.datetime.now()
+  week = now - datetime.timedelta(days=now.weekday()+7*weeks_ago, hours=now.hour, minutes=now.minute, seconds=now.second)
+  end_of_week = week + datetime.timedelta(days=7)
+
+  print("\nBuilding 1 Minute Interval Simple Observations")
+  dataset = BuildAveragedDataSet(start_time=week, end_time=end_of_week, activities=dataset, time_interval=time_interval, average_act=True) 
+
+  BuildObservationPlot(dataset)
+
+  TotalHoursActive = sum( [datum.activity for datum in dataset] ) * (time_interval/60)
+  plt.title("Hours Worked %d Weeks Ago: %d"%(weeks_ago, int( TotalHoursActive )))
+  plt.draw()
+
+  return TotalHoursActive
+
+def BuildTicks(points):
+  ticks = list()
+  modulo = int(len(points)/15)
+  print("\n",modulo)
+  next_index = 0
+  for index, point in enumerate(points):
+    if index == next_index:
+      ticks.append( point )
+      next_index += modulo
+  return ticks
+
+def BuildObservationPlot(dataset, plot_title= "", xtick_unit='hours', xtick_res=1):
   dates = [datum.timestamp for datum in dataset]
   act   = [datum.activity  for datum in dataset]
 
+  xticks = BuildTicks(dates)
+  xlabels = [tick.strftime("%A-%I:%M %p") for tick in xticks] # Format Labels as Day-Hour:Minutes AM/PM using 12-hour
+
+  plt.figure()
+  plt.xticks(xticks, xlabels, rotation=90)
   plt.plot(dates, act)
+  plt.gcf().subplots_adjust(bottom=0.15)
+  plt.title(plot_title)
+
+
   plt.show(block=False)
 
 if __name__ == '__main__':
   print("Running ReadLog")
   dataset = ReadLog()
-  StandardAnalysis(dataset)
+  t = WeeklyAnalysis(dataset)
+  t = WeeklyAnalysis(dataset, 1)
   ipshell()
 

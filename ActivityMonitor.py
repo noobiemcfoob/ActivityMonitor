@@ -15,7 +15,8 @@ import wmi
 c = wmi.WMI()
 
 def get_app_name(hwnd):
-    """Get applicatin filename given hwnd."""
+    """Get application filename given hwnd."""
+    exe = None
     try:
         _, pid = win32process.GetWindowThreadProcessId(hwnd)
         for p in c.query('SELECT Name FROM Win32_Process WHERE ProcessId = %s' % str(pid)):
@@ -23,8 +24,8 @@ def get_app_name(hwnd):
             break
     except:
         return None
-    else:
-        return exe
+    
+    return exe
 
 ## Get list of all windows
 windows = list()
@@ -58,7 +59,7 @@ def MonitorExceptionCatcher():
   try:
     MonitorActivity()
   except Exception as e:
-    print("\n\nSaw exception: \n",e
+    print("\n\nSaw exception: \n",e)
     return True
 
 def ExceptionMonitor(exception_count_threshold=None):
@@ -84,7 +85,7 @@ if __name__ == '__main__':
   # main_function returns True if it fails.
   # otherwise, it will run forever.
   # This loop wil continuously try to call main_function
-  while(main_function()):
+  while(ExceptionMonitor()):
     exception_count += 1
     last_exception_time = datetime.now()
 
